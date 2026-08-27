@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wanger.common.constants.HeaderConstants;
 import com.wanger.common.constants.RedisConstants;
 import com.wanger.common.dto.Result;
-import org.springframework.beans.factory.annotation.Value;
+import com.wanger.gateway.config.AuthProperties;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -32,17 +32,13 @@ import java.util.concurrent.TimeUnit;
 public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
     private final StringRedisTemplate stringRedisTemplate;
+    private final AuthProperties authProperties;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
-    /**
-     * 无需登录即可访问的路径，逗号分隔，支持 Ant 风格（如 /shop/**）
-     */
-    @Value("${auth.whitelist:}")
-    private String whitelist;
-
-    public AuthGlobalFilter(StringRedisTemplate stringRedisTemplate) {
+    public AuthGlobalFilter(StringRedisTemplate stringRedisTemplate, AuthProperties authProperties) {
         this.stringRedisTemplate = stringRedisTemplate;
+        this.authProperties = authProperties;
     }
 
     @Override
@@ -74,19 +70,17 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
         // 4. 滑动续期
         stringRedisTemplate.expire(key, RedisConstants.LOGIN_USER_TTL, TimeUnit.SECONDS);
 
-        // 5. 透传身份
+        // 5. 透传身份：先清除客户端伪造的 X-User-Id，再写入鉴权得到的真实 id
         ServerHttpRequest mutated = exchange.getRequest().mutate()
+                .headers(headers -> headers.remove(HeaderConstants.USER_ID))
                 .header(HeaderConstants.USER_ID, id.toString())
                 .build();
         return chain.filter(exchange.mutate().request(mutated).build());
     }
 
     private boolean isWhitelisted(String path) {
-        if (whitelist == null || whitelist.isBlank()) {
-            return false;
-        }
-        for (String pattern : whitelist.split(",")) {
-            if (pathMatcher.match(pattern.trim(), path)) {
+        for (String pattern : authProperties.getWhitelist()) {
+            if (pathMatcher.match(pattern, path)) {
                 return true;
             }
         }
