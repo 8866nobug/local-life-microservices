@@ -29,6 +29,7 @@
         <redisson.version>3.27.2</redisson.version>
 
         <spring-cloud.version>2021.0.9</spring-cloud.version>
+        <spring-cloud-alibaba.version>2021.0.6.2</spring-cloud-alibaba.version>
     </properties>
 
     <!-- 统一依赖版本 -->
@@ -38,6 +39,13 @@
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
                 <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency> <!-- Spring Cloud Alibaba（须置于 spring-cloud-dependencies 之后，先声明者优先） -->
+            <dependency>
+                <groupId>com.alibaba.cloud</groupId>
+                <artifactId>spring-cloud-alibaba-dependencies</artifactId>
+                <version>${spring-cloud-alibaba.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency> <!-- MyBatis-Plus -->
