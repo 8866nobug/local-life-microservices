@@ -2,6 +2,11 @@ auth:
   whitelist:
     - /user/code
     - /user/login
+    # shop 公开读接口（写接口 POST/PUT /shop 仍须登录）
+    - /shop/*
+    - /shop/of/type
+    - /shop/of/name
+    - /shop-type/list
 spring:
   cloud:
     gateway:
@@ -13,7 +18,7 @@ spring:
         - id: shop-service
           uri: lb://shop-service
           predicates:
-            - Path=/shop/**
+            - Path=/shop/**,/shop-type/**
         - id: voucher-service
           uri: lb://voucher-service
           predicates:
