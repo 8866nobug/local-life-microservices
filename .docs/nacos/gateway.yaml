@@ -1,0 +1,24 @@
+auth:
+  whitelist:
+    - /user/code
+    - /user/login
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: user-service
+          uri: lb://user-service
+          predicates:
+            - Path=/user/**
+        - id: shop-service
+          uri: lb://shop-service
+          predicates:
+            - Path=/shop/**
+        - id: voucher-service
+          uri: lb://voucher-service
+          predicates:
+            - Path=/voucher/**
+        - id: blog-service
+          uri: lb://blog-service
+          predicates:
+            - Path=/blog/**

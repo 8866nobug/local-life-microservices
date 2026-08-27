@@ -1,35 +1,5 @@
 # gateway 本地开发配置
-# 当前路由为写死地址，后续接入 Nacos 后，把 uri 从 http://localhost:808x 改成 lb://xxx-service 即可。
-
-auth:
-  whitelist: /user/code,/user/login
+# 仅保留端口；应用名、Nacos 地址、路由、白名单等均已移入 Nacos 配置中心（权威副本见 .docs/nacos/gateway.yaml）。
 
 server:
   port: 8080
-
-spring:
-  application:
-    name: gateway
-  cloud:
-    gateway:
-      routes:
-        # 用户服务
-        - id: user-service
-          uri: http://localhost:8081    # 接入 Nacos 后改为 lb://user-service
-          predicates:
-            - Path=/user/**
-        # 店铺服务
-        - id: shop-service
-          uri: http://localhost:8082    # 接入 Nacos 后改为 lb://shop-service
-          predicates:
-            - Path=/shop/**
-        # 优惠券服务
-        - id: voucher-service
-          uri: http://localhost:8083    # 接入 Nacos 后改为 lb://voucher-service
-          predicates:
-            - Path=/voucher/**
-        # 博客服务
-        - id: blog-service
-          uri: http://localhost:8084    # 接入 Nacos 后改为 lb://blog-service
-          predicates:
-            - Path=/blog/**
