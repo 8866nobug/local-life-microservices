@@ -1,0 +1,288 @@
+{
+  "info": {
+    "name": "local-life-microservices · Nacos 接入测试",
+    "description": "黑马点评微服务改造 - Nacos 注册中心/配置中心接入后的端到端测试。\n\n前置条件：\n1. Nacos 容器已启动（127.0.0.1:8848，本机 localhost→IPv6 会超时，务必用 127.0.0.1）。\n2. user-service(8081)、gateway(8080) 已启动，且三份配置已发布到 Nacos（shared-redis.yaml / user-service.yaml / gateway.yaml）。\n\n使用说明：\n- 「发送验证码」不会返回验证码，需要从 Redis（docker exec redis7 redis-cli GET \"login:code:13800138000\"）或 user-service 控制台日志里拿到 6 位验证码，填入集合变量 code。\n- 「登录」成功后会自动把返回的 token 写入集合变量 token，后续鉴权请求直接使用 {{token}}。\n- 集合变量：phone=13800138000（默认）、code=123456（占位，改成真实验证码）、token=自动填充。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "nacosUrl",
+      "value": "http://127.0.0.1:8848",
+      "type": "string"
+    },
+    {
+      "key": "phone",
+      "value": "13800138000",
+      "type": "string"
+    },
+    {
+      "key": "code",
+      "value": "123456",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Nacos 注册 / 配置中心检查",
+      "item": [
+        {
+          "name": "Nacos 就绪",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{nacosUrl}}/nacos/v1/console/health/readiness"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Nacos 就绪（返回 OK）', () => pm.expect(pm.response.text()).to.include('OK'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "服务列表（应含 gateway + user-service）",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{nacosUrl}}/nacos/v1/ns/service/list?pageNo=1&pageSize=10"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const doms = pm.response.json().doms || [];",
+                  "pm.test('已注册服务含 user-service', () => pm.expect(doms).to.include('user-service'));",
+                  "pm.test('已注册服务含 gateway', () => pm.expect(doms).to.include('gateway'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "user-service 实例详情（healthy=true）",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{nacosUrl}}/nacos/v1/ns/instance/list?serviceName=user-service"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const hosts = pm.response.json().hosts || [];",
+                  "pm.test('存在已注册实例', () => pm.expect(hosts.length).to.be.above(0));",
+                  "pm.test('实例 healthy=true', () => pm.expect(hosts[0].healthy).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "读配置 gateway.yaml（白名单 + 路由）",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{nacosUrl}}/nacos/v1/cs/configs?dataId=gateway.yaml&group=DEFAULT_GROUP"
+          }
+        },
+        {
+          "name": "读配置 user-service.yaml（datasource + mybatis-plus）",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{nacosUrl}}/nacos/v1/cs/configs?dataId=user-service.yaml&group=DEFAULT_GROUP"
+          }
+        },
+        {
+          "name": "读配置 shared-redis.yaml（共享 Redis）",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{nacosUrl}}/nacos/v1/cs/configs?dataId=shared-redis.yaml&group=DEFAULT_GROUP"
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. 业务链路（经网关）",
+      "item": [
+        {
+          "name": "发送验证码",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/user/code?phone={{phone}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('发送成功 success=true', () => pm.expect(data.success).to.be.true);",
+                  "console.log('验证码请从 Redis 或 user-service 日志获取，再填到集合变量 code');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "登录（自动保存 token）",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{phone}}\",\n  \"code\": \"{{code}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/user/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data && data.success) {",
+                  "    pm.collectionVariables.set('token', data.data);",
+                  "    pm.test('登录成功，token 已写入集合变量', () => pm.expect(data.data).to.be.a('string'));",
+                  "} else {",
+                  "    pm.test('登录失败：' + (data && data.errorMsg || '未知'), () => pm.expect(data.success).to.be.true);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "鉴权访问 /user/me（带 token）",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "authorization",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/user/me"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('鉴权成功返回用户信息', () => pm.expect(data.success).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "无 token 访问 /user/me（预期 401）",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/user/me"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('未登录应返回 401', () => pm.expect(pm.response.code).to.eql(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "登出",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "authorization",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/user/logout"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('登出成功 success=true', () => pm.expect(data.success).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "登出后再访问 /user/me（预期 401）",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "authorization",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/user/me"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('登出后 token 失效应返回 401', () => pm.expect(pm.response.code).to.eql(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
