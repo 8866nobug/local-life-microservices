@@ -21,6 +21,7 @@
         <module>user-service</module>
         <module>shop-service</module>
         <module>voucher-service</module>
+        <module>blog-service</module>
     </modules>
 
     <properties>
