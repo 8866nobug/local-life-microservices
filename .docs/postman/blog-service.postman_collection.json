@@ -1,0 +1,466 @@
+{
+  "info": {
+    "name": "blog-service · 笔记/Feed 流服务测试",
+    "description": "黑马点评微服务改造 - blog-service 笔记 + Feed 流（关注/发笔记/刷关注页/点赞）接口测试。\n\n前置条件：\n1. Nacos(127.0.0.1:8848)、gateway(8080)、blog-service(8084)、user-service(8081)、RocketMQ(NameServer 127.0.0.1:9876) 已启动。\n2. blog-service.yaml / shared-redis.yaml / gateway.yaml 已发布到 Nacos 配置中心（gateway.yaml 需含 /follow/** 路由）。\n3. 已创建 dev_blog 库并导入 dev-blog.sql（种子数据：tb_blog id 1/2 属 user_id=1；tb_follow 一条 2→1）。\n4. 已创建 dev_user 库并导入 dev_user.sql（种子用户：id=1 小鱼同学 13686869696、id=2 可可今天不吃肉 13838411438）。\n\n登录（本集合所有接口都需登录，blog 无公开读接口）：\n- 验证码登录：POST /user/code?phone=手机号 → 在 user-service 控制台日志里看「发送验证码，xxxxxx」→ POST /user/login 用该 code 换 token。\n- 本集合需要两个 token（Feed 流必须作者 + 粉丝两个角色）：\n  · {{token}}       = 用户2（可可，id=2，刷关注页的「我」，也是关注/点赞的执行者）→ 手机号 13838411438\n  · {{authorToken}} = 用户1（小鱼，id=1，发笔记的作者、被关注对象）→ 手机号 13686869696\n\n测试顺序（Feed 链路）：\n1. 用户2 关注用户1（分组1）。\n2. 用户1 发一条新笔记（分组2，发笔记会触发 RocketMQ 异步推送到用户2 收件箱 feed:2，返回的 blogId 自动存入变量）。\n   ⚠️ 种子笔记 id 1/2 是直接 INSERT 的，未走 MQ 推送，用户2 收件箱里没有它们；必须重新发一条笔记才能看到推送效果。\n3. 用户2 刷关注页（分组3）：应能看到刚发的笔记；首屏后自动把最后一条 score 存进 {{lastTime}} 供滚动翻页。\n4. 用户2 点赞/取消（分组4）。\n\n说明：\n- 大V判定阈值 blog.feed.big-v-threshold 默认 10000，种子用户都不是大V，发笔记走「推」；若想验证「拉」，可临时把阈值调到 1 并重启 blog-service（用户1 有 1 个粉丝即被判定为大V）。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "authorToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "authorId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "blogId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "lastTime",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. 关注 / 取关（需登录 token = 用户2）",
+      "item": [
+        {
+          "name": "关注作者（关注用户1）",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "authorization",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/follow/{{authorId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('返回 success=true', () => pm.expect(data.success).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "重复关注（幂等，唯一索引兜底）",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "authorization",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/follow/{{authorId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('重复关注返回 success=true（幂等）', () => pm.expect(data.success).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "关注自己（预期「不能关注自己」）",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "authorization",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/follow/2"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('返回 success=false', () => pm.expect(data.success).to.be.false);",
+                  "pm.test('错误信息为「不能关注自己」', () => pm.expect(data.errorMsg).to.eql('不能关注自己'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "取关（关注关系删除，不清理收件箱残留，读时兜底）",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "authorization",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/follow/{{authorId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('返回 success=true', () => pm.expect(data.success).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "无 token 关注（预期 401）",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/follow/{{authorId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('无 token 应返回 401', () => pm.expect(pm.response.code).to.eql(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. 发笔记 / 删笔记（需登录 authorToken = 用户1）",
+      "item": [
+        {
+          "name": "发布探店笔记（触发 MQ 推送到粉丝收件箱）",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "authorization",
+                "value": "{{authorToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shopId\": 1,\n  \"title\": \"测试笔记-火锅探店\",\n  \"images\": \"/imgs/blogs/blog1.jpg\",\n  \"content\": \"这是一条用于验证 Feed 流推送的测试笔记\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/blog"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('返回 success=true', () => pm.expect(data.success).to.be.true);",
+                  "pm.test('返回新笔记 id', () => pm.expect(data.data).to.be.a('number'));",
+                  "pm.collectionVariables.set('blogId', data.data);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "删除笔记（作者本人）",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "authorization",
+                "value": "{{authorToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/blog/{{blogId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('返回 success=true', () => pm.expect(data.success).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "删除不存在的笔记（预期「笔记不存在」）",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "authorization",
+                "value": "{{authorToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/blog/99999"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('返回 success=false', () => pm.expect(data.success).to.be.false);",
+                  "pm.test('错误信息为「笔记不存在」', () => pm.expect(data.errorMsg).to.eql('笔记不存在'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "无 token 发笔记（预期 401）",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shopId\": 1,\n  \"title\": \"未登录笔记\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/blog"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('无 token 应返回 401', () => pm.expect(pm.response.code).to.eql(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. 刷关注页 Feed 流（需登录 token = 用户2）",
+      "item": [
+        {
+          "name": "首屏刷关注页（推 + 拉合并，滚动分页）",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "authorization",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/blog/of/follow?pageSize=10"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('返回 success=true', () => pm.expect(data.success).to.be.true);",
+                  "pm.test('data 为数组', () => pm.expect(data.data).to.be.an('array'));",
+                  "if (data.data && data.data.length > 0) {",
+                  "  pm.test('笔记含作者昵称 name', () => pm.expect(data.data[0]).to.have.property('name'));",
+                  "  pm.test('笔记含游标 score', () => pm.expect(data.data[0]).to.have.property('score'));",
+                  "  pm.collectionVariables.set('lastTime', data.data[data.data.length - 1].score);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "滚动翻页（用上一页最后一条 score 作游标）",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "authorization",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/blog/of/follow?lastTime={{lastTime}}&pageSize=10"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('返回 success=true', () => pm.expect(data.success).to.be.true);",
+                  "pm.test('data 为数组', () => pm.expect(data.data).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "无 token 刷关注页（预期 401）",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/blog/of/follow?pageSize=10"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('无 token 应返回 401', () => pm.expect(pm.response.code).to.eql(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. 点赞（需登录 token = 用户2，对 {{blogId}}）",
+      "item": [
+        {
+          "name": "点赞（Redis Set，返回 isLike 与点赞数）",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "authorization",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/blog/like/{{blogId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('返回 success=true', () => pm.expect(data.success).to.be.true);",
+                  "pm.test('data 含 isLike=true（首次点赞）', () => pm.expect(data.data.isLike).to.be.true);",
+                  "pm.test('data 含 likeCount', () => pm.expect(data.data.likeCount).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "再次点赞 = 取消点赞（幂等切换）",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "authorization",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/blog/like/{{blogId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('返回 success=true', () => pm.expect(data.success).to.be.true);",
+                  "pm.test('data 含 isLike=false（已取消）', () => pm.expect(data.data.isLike).to.be.false);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "无 token 点赞（预期 401）",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/blog/like/{{blogId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('无 token 应返回 401', () => pm.expect(pm.response.code).to.eql(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
