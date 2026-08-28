@@ -19,6 +19,11 @@ public class RedisConstants {
     public static final String SECKILL_ORDER_KEY = "seckill:order:";
     public static final String BLOG_LIKED_KEY = "blog:liked:";
     public static final String FEED_KEY = "feed:";
+    // 大V列表（全局 Set，无尾缀，member=userId；真相在 tb_follow 粉丝数，启动预热重建）
+    public static final String BLOG_BIGV_KEY = "blog:bigv";
+    // 笔记内容缓存（+blogId）
+    public static final String BLOG_CACHE_KEY = "blog:cache:";
+    public static final Long BLOG_CACHE_TTL = 30L;
     public static final String SHOP_GEO_KEY = "shop:geo:";
     public static final String USER_SIGN_KEY = "sign:";
     public static final String CACHE_SHOPTYPE_KEY = "cache:shoptype";
