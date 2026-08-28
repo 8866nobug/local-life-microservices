@@ -1,0 +1,16 @@
+# bootstrap 上下文：先于 application.yml 加载，用于连接 Nacos 注册中心与配置中心。
+spring:
+  application:
+    name: voucher-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+      config:
+        server-addr: 127.0.0.1:8848
+        file-extension: yaml
+        group: DEFAULT_GROUP
+        shared-configs:
+          - data-id: shared-redis.yaml
+            group: DEFAULT_GROUP
+            refresh: true

@@ -1,0 +1,5 @@
+# voucher-service 本地开发配置
+# 仅保留端口；应用名、Nacos 地址、datasource、redis、mybatis-plus 均已移入 Nacos 配置中心（权威副本见 .docs/nacos/）。
+
+server:
+  port: 8083
