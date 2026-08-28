@@ -80,4 +80,17 @@ public class UserController {
         // 返回
         return Result.ok(info);
     }
+
+    /**
+     * 按 id 查询用户基础信息（供 blog-service 等跨服务 Feign 调用）
+     */
+    @GetMapping("/{id}")
+    public Result getUserById(@PathVariable("id") Long userId){
+        User user = userService.getById(userId);
+        if (user == null) {
+            return Result.fail("用户不存在");
+        }
+        UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);
+        return Result.ok(userDTO);
+    }
 }
