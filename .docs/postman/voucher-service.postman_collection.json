@@ -1,0 +1,257 @@
+{
+  "info": {
+    "name": "voucher-service · 优惠券服务测试",
+    "description": "黑马点评微服务改造 - voucher-service 优惠券/秒杀服务接口测试。\n\n前置条件：\n1. Nacos(127.0.0.1:8848)、gateway(8080)、voucher-service(8083)、RocketMQ(NameServer 127.0.0.1:9876) 已启动。\n2. voucher-service.yaml / shared-redis.yaml / gateway.yaml 已发布到 Nacos 配置中心。\n3. 已创建 dev_voucher 库并导入 dev-voucher.sql；且 tb_seckill_voucher 表、tb_voucher_order 上的唯一索引 uk_user_voucher(user_id, voucher_id) 已手动补齐（幂等兜底）。\n4. 秒杀链路：POST /voucher-order/seckill/{voucherId} 走 Lua 预扣 → RocketMQ → 消费者事务落库，需登录。\n\n使用说明：\n- 读接口 GET /voucher/list/* 已加入网关白名单，无需登录。\n- 写接口需登录：先在 user-service 登录拿到 token 填入集合变量 {{token}}（网关注入 X-User-Id，下游据此取 userId）。\n- 秒杀下单前：先执行「新增秒杀券」拿到返回的 voucherId，填到集合变量 {{voucherId}}，再执行「秒杀下单」。\n- {{shopId}} 默认 1（dev-voucher.sql 种子数据 tb_voucher id=1）。\n- 秒杀下单返回 data 为 orderId；随后可查 tb_voucher_order 与 tb_seckill_voucher.stock 验证异步落库。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "shopId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "voucherId",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. 优惠券查询（公开）",
+      "item": [
+        {
+          "name": "查询店铺优惠券列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/voucher/list/{{shopId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('返回 success=true', () => pm.expect(data.success).to.be.true);",
+                  "pm.test('data 为数组', () => pm.expect(data.data).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. 新增优惠券（需登录 token）",
+      "item": [
+        {
+          "name": "新增普通券",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "authorization",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shopId\": {{shopId}},\n  \"title\": \"100元代金券\",\n  \"subTitle\": \"满1000减100\",\n  \"rules\": \"全场通用，每人限领一张\",\n  \"payValue\": 900,\n  \"actualValue\": 1000,\n  \"type\": 0,\n  \"status\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/voucher"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('返回 success=true', () => pm.expect(data.success).to.be.true);",
+                  "pm.test('返回新券 id', () => pm.expect(data.data).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "新增秒杀券",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "authorization",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shopId\": {{shopId}},\n  \"title\": \"秒杀券\",\n  \"subTitle\": \"1元抢购\",\n  \"rules\": \"限时秒杀，先到先得\",\n  \"payValue\": 1,\n  \"actualValue\": 100,\n  \"type\": 1,\n  \"status\": 1,\n  \"stock\": 100,\n  \"beginTime\": \"2026-09-01T00:00:00\",\n  \"endTime\": \"2026-09-30T00:00:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/voucher/seckill"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('返回 success=true', () => pm.expect(data.success).to.be.true);",
+                  "pm.test('返回新券 id', () => pm.expect(data.data).to.be.a('number'));",
+                  "pm.environment.set('voucherId', data.data);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "无 token 新增券（预期 401）",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shopId\": 1,\n  \"title\": \"未登录券\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/voucher"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('无 token 应返回 401', () => pm.expect(pm.response.code).to.eql(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. 秒杀下单（需登录，走 RocketMQ）",
+      "item": [
+        {
+          "name": "秒杀下单",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "authorization",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/voucher-order/seckill/{{voucherId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('返回 success=true（Lua 预扣成功，返回 orderId）', () => pm.expect(data.success).to.be.true);",
+                  "pm.test('data 为订单 id', () => pm.expect(data.data).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "重复秒杀（预期「一人一单」）",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "authorization",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/voucher-order/seckill/{{voucherId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('返回 success=false', () => pm.expect(data.success).to.be.false);",
+                  "pm.test('错误信息为「一人一单」', () => pm.expect(data.errorMsg).to.eql('一人一单'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "无 token 秒杀下单（预期 401）",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/voucher-order/seckill/{{voucherId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('无 token 应返回 401', () => pm.expect(pm.response.code).to.eql(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

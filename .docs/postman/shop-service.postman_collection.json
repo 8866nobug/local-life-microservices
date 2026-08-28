@@ -1,0 +1,261 @@
+{
+  "info": {
+    "name": "shop-service · 商铺服务测试",
+    "description": "黑马点评微服务改造 - shop-service 商铺服务接口测试。\n\n前置条件：\n1. Nacos(127.0.0.1:8848)、gateway(8080)、shop-service(8082) 已启动。\n2. shop-service.yaml / shared-redis.yaml 已发布到 Nacos 配置中心。\n3. 已创建 dev_shop 库并导入 dev-shop.sql（种子数据 tb_shop id 1~14）。\n4. shop-service 启动时会预热商铺缓存（ShopCachePreWarmer），/shop/{id} 依赖该缓存，未预热直接返回「店铺不存在」。\n\n使用说明：\n- 读接口（类型列表/分页/搜索/详情）已加入网关白名单，无需登录。\n- 写接口（POST/PUT /shop）需登录：先在 user-service 登录拿到 token 填入集合变量 {{token}}，或直接复制上一份集合登录得到的 token。\n- {{shopId}} 默认 1（种子数据「103茶餐厅」）。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "shopId",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. 店铺类型（公开）",
+      "item": [
+        {
+          "name": "查询类型列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/shop-type/list"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('返回 success=true', () => pm.expect(data.success).to.be.true);",
+                  "pm.test('data 为数组且非空', () => pm.expect(data.data).to.be.an('array').that.is.not.empty);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. 店铺查询（公开，无需登录）",
+      "item": [
+        {
+          "name": "按类型分页查询（typeId=1）",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/shop/of/type?typeId=1&current=1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('返回 success=true', () => pm.expect(data.success).to.be.true);",
+                  "pm.test('data 为数组', () => pm.expect(data.data).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "按名称搜索（name=茶）",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/shop/of/name?name=茶&current=1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('返回 success=true', () => pm.expect(data.success).to.be.true);",
+                  "pm.test('data 为数组', () => pm.expect(data.data).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "按 id 查询详情（走逻辑过期缓存）",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/shop/{{shopId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('返回 success=true', () => pm.expect(data.success).to.be.true);",
+                  "pm.test('返回店铺对象且含 name', () => pm.expect(data.data).to.have.property('name'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "查询不存在的店铺（预期「店铺不存在」）",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/shop/99999"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('返回 success=false', () => pm.expect(data.success).to.be.false);",
+                  "pm.test('错误信息为「店铺不存在」', () => pm.expect(data.errorMsg).to.eql('店铺不存在'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. 店铺写操作（需登录 token）",
+      "item": [
+        {
+          "name": "新增店铺",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "authorization",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"测试店铺\",\n  \"typeId\": 1,\n  \"images\": \"https://example.com/a.jpg,https://example.com/b.jpg\",\n  \"area\": \"测试商圈\",\n  \"address\": \"测试地址\",\n  \"x\": 120.0,\n  \"y\": 30.0,\n  \"avgPrice\": 100,\n  \"sold\": 0,\n  \"comments\": 0,\n  \"score\": 50,\n  \"openHours\": \"10:00-22:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/shop"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('返回 success=true', () => pm.expect(data.success).to.be.true);",
+                  "pm.test('返回新店铺 id', () => pm.expect(data.data).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "更新店铺（按 id 部分字段）",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "authorization",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": {{shopId}},\n  \"name\": \"103茶餐厅（已改名）\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/shop"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.test('返回 success=true', () => pm.expect(data.success).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "无 token 新增店铺（预期 401）",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"未登录店铺\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/shop"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('无 token 应返回 401', () => pm.expect(pm.response.code).to.eql(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
