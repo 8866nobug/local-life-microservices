@@ -7,6 +7,8 @@ auth:
     - /shop/of/type
     - /shop/of/name
     - /shop-type/list
+    # voucher 公开读接口（秒杀下单 POST /voucher-order、新增券 POST /voucher 仍须登录）
+    - /voucher/list/*
 spring:
   cloud:
     gateway:
@@ -22,7 +24,7 @@ spring:
         - id: voucher-service
           uri: lb://voucher-service
           predicates:
-            - Path=/voucher/**
+            - Path=/voucher/**,/voucher-order/**
         - id: blog-service
           uri: lb://blog-service
           predicates:
