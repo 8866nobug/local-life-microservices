@@ -20,6 +20,7 @@
         <module>gateway</module>
         <module>user-service</module>
         <module>shop-service</module>
+        <module>voucher-service</module>
     </modules>
 
     <properties>
@@ -31,6 +32,7 @@
 
         <spring-cloud.version>2021.0.9</spring-cloud.version>
         <spring-cloud-alibaba.version>2021.0.6.2</spring-cloud-alibaba.version>
+        <rocketmq.version>2.2.3</rocketmq.version>
     </properties>
 
     <!-- 统一依赖版本 -->
@@ -64,6 +66,11 @@
                 <groupId>org.redisson</groupId>
                 <artifactId>redisson</artifactId>
                 <version>${redisson.version}</version>
+            </dependency> <!-- RocketMQ Spring Boot Starter -->
+            <dependency>
+                <groupId>org.apache.rocketmq</groupId>
+                <artifactId>rocketmq-spring-boot-starter</artifactId>
+                <version>${rocketmq.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement> <!-- 全局插件 -->
