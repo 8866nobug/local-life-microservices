@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/dev_blog?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: 123456
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+rocketmq:
+  name-server: 127.0.0.1:9876
+  producer:
+    group: feed-producer-group
+blog:
+  feed:
+    # 大V判定阈值：粉丝数超过该值即视为大V，发布时走「拉」而非「推」
+    big-v-threshold: 10000
