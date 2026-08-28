@@ -24,5 +24,12 @@
 
 ## 基础设施（后续阶段，按改造方案顺序）
 - ✅ 已接入 Nacos（服务注册 + 配置中心）。⚠️ 当前 Nacos 用内嵌 derby 且未挂数据卷，容器重建会丢配置 —— 权威副本在 `.docs/nacos/`，重建后需重新发布；后续可改 MySQL 存储或挂载数据卷。
-- 实现 shop-service / voucher-service / blog-service（数据边界、Feign 通信）。
+- ✅ 已实现 shop-service / voucher-service / blog-service（数据边界、Feign 通信）。
 - 接入 Sentinel（限流/熔断）、RabbitMQ（秒杀异步落库）、Canal（缓存同步）。
+
+## blog-service（中优先级）
+- 点赞数仅存 Redis Set（`blog:liked:{id}`），未异步落库到 `tb_blog.liked`，Redis 重启即失（代码已标 TODO）。
+- 评论功能未实现（`tb_blog.comments` 字段已预留，`tb_blog_comments` 表未建）。
+- 笔记详情查询 `GET /blog/{id}` 未实现（本期聚焦 Feed，详情页可后续补）。
+- Feed 刷关注页逐条 Feign 查作者信息，同作者多篇笔记会重复调用（已按请求内 Map 去重，但跨请求未缓存，可批量查询优化 N+1）。
+- 收件箱 ZSet（`feed:{userId}`）未做过期清理，长期会无限膨胀（可用 `ZREMRANGEBYSCORE` 按 score 清理过期）。
