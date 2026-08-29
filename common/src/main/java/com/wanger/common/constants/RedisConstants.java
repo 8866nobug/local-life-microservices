@@ -28,4 +28,7 @@ public class RedisConstants {
     public static final String USER_SIGN_KEY = "sign:";
     public static final String CACHE_SHOPTYPE_KEY = "cache:shoptype";
     public static final Long CACHE_SHOPTYPE_TTL = 30L;
+    // AI 分析报告结果缓存（+taskId，一次性查看、TTL 过期自动清理）
+    public static final String AI_REPORT_KEY = "ai:report:";
+    public static final Long AI_REPORT_TTL = 3600L;
 }
