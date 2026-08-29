@@ -49,5 +49,5 @@
 - 报告未关联 userId（Redis key 仅 `ai:report:{taskId}`，taskId 即凭证）；后续做「我的报告历史」需在 value 记 userId 并校验。
 - 「店铺分析」输入仅用 shop/voucher 现成只读接口，无订单核销统计（需 voucher-service 补 `voucher_order→voucher→shopId` 聚合查询，JOIN 后再接入 Dify workflow）。
 - RAG 知识库未接（店铺/博客数据未向量化进 Dify 知识库）。
-- Feed 推荐 / 店铺推荐 feature 未做（复用 ai-service + 新增 Dify workflow 即可，架构不变）。
+- Feed 推荐 / 店铺推荐 feature 未做（复用 ai-service + 新增 Dify workflow 即可，架构不变）。⚠️ 注意：个性化推荐需要用户私有数据（关注/点赞/订单），业务服务靠 `X-User-Id` 识别用户，方案 b（Dify 直连）拿不到用户身份 → 需退回方案 a（ai-service Feign 带 X-User-Id 拉数再传 Dify），或另想身份透传方案。
 - Dify 部署形态未定：开发可用 Dify Cloud 免费额度，上线再自托管（Docker 多容器较重）。
