@@ -22,6 +22,7 @@
         <module>shop-service</module>
         <module>voucher-service</module>
         <module>blog-service</module>
+        <module>ai-service</module>
     </modules>
 
     <properties>

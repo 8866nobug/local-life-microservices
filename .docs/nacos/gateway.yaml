@@ -9,6 +9,8 @@ auth:
     - /shop-type/list
     # voucher 公开读接口（秒杀下单 POST /voucher-order、新增券 POST /voucher 仍须登录）
     - /voucher/list/*
+    # ai 报告查询接口（taskId 即凭证；生成报告 POST /ai/report/shop 仍须登录）
+    - /ai/report/*
 spring:
   cloud:
     gateway:
@@ -29,3 +31,7 @@ spring:
           uri: lb://blog-service
           predicates:
             - Path=/blog/**,/follow/**
+        - id: ai-service
+          uri: lb://ai-service
+          predicates:
+            - Path=/ai/**
