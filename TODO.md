@@ -34,6 +34,16 @@
 - Feed 刷关注页逐条 Feign 查作者信息，同作者多篇笔记会重复调用（已按请求内 Map 去重，但跨请求未缓存，可批量查询优化 N+1）。
 - 收件箱 ZSet（`feed:{userId}`）未做过期清理，长期会无限膨胀（可用 `ZREMRANGEBYSCORE` 按 score 清理过期）。
 
+## ai-service（待完成：Dify 部署 + 联调）
+
+> 已选定方案 b：Dify 自托管（Docker），workflow 内 HTTP 节点直连 Java 服务取数；Dify Cloud 连不到本机，方案 b 下不可用。
+
+- 部署 Dify：本机 Docker `docker compose up`，API 默认端口 5001。
+- 建「店铺经营分析」workflow（Workflow 类型）：开始节点 shopId → HTTP 查店铺 `http://host.docker.internal:8082/shop/{{shopId}}` → HTTP 查券 `http://host.docker.internal:8083/voucher/list/{{shopId}}` → 代码节点解析 `Result.data` → LLM 节点（店铺经营分析师 prompt）→ 结束节点输出变量 `report`（须与 DifyClient `outputs.get("report")` 一致）。
+- 发布应用 → 复制 API Key → 填入 `.docs/nacos/ai-service.yaml` 的 `api-key`（当前占位 `app-REPLACE_ME`）。
+- 重新发布 Nacos 配置：覆盖 `gateway.yaml`（/ai 路由 + /ai/report/* 白名单）、新建 `ai-service.yaml`。
+- 联调：启动 ai-service → 注册 Nacos → 网关 POST /ai/report/shop/{id} 拿 taskId → 轮询 GET /ai/report/{taskId}；停 Dify 验证降级 FALLBACK 路径；产出 Postman 测试集合。
+
 ## ai-service（中优先级）
 - 报告生成用 Dify `response_mode=blocking` 同步等结果，未做 SSE 流式返回（长报告首字延迟高，可改 streaming + SSE 转发）。
 - 报告未关联 userId（Redis key 仅 `ai:report:{taskId}`，taskId 即凭证）；后续做「我的报告历史」需在 value 记 userId 并校验。
