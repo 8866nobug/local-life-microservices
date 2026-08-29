@@ -33,3 +33,11 @@
 - 笔记详情查询 `GET /blog/{id}` 未实现（本期聚焦 Feed，详情页可后续补）。
 - Feed 刷关注页逐条 Feign 查作者信息，同作者多篇笔记会重复调用（已按请求内 Map 去重，但跨请求未缓存，可批量查询优化 N+1）。
 - 收件箱 ZSet（`feed:{userId}`）未做过期清理，长期会无限膨胀（可用 `ZREMRANGEBYSCORE` 按 score 清理过期）。
+
+## ai-service（中优先级）
+- 报告生成用 Dify `response_mode=blocking` 同步等结果，未做 SSE 流式返回（长报告首字延迟高，可改 streaming + SSE 转发）。
+- 报告未关联 userId（Redis key 仅 `ai:report:{taskId}`，taskId 即凭证）；后续做「我的报告历史」需在 value 记 userId 并校验。
+- 「店铺分析」输入仅用 shop/voucher 现成只读接口，无订单核销统计（需 voucher-service 补 `voucher_order→voucher→shopId` 聚合查询，JOIN 后再接入 Dify workflow）。
+- RAG 知识库未接（店铺/博客数据未向量化进 Dify 知识库）。
+- Feed 推荐 / 店铺推荐 feature 未做（复用 ai-service + 新增 Dify workflow 即可，架构不变）。
+- Dify 部署形态未定：开发可用 Dify Cloud 免费额度，上线再自托管（Docker 多容器较重）。
