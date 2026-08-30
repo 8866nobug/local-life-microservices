@@ -22,7 +22,7 @@ public class DifyProperties {
     private String baseUrl;
 
     /**
-     * 各 Dify 应用配置，key 为应用名（如 shop-analysis / user-profile）。
+     * 各 Dify 应用配置，key 为应用名（如 shop-analysis / customer-service）。
      */
     private Map<String, App> apps;
 

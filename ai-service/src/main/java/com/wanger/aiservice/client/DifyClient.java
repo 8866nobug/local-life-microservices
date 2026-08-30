@@ -32,9 +32,9 @@ public class DifyClient {
     public static final String APP_SHOP_ANALYSIS = "shop-analysis";
 
     /**
-     * Dify 应用名：根据用户 blog 生成用户画像。
+     * Dify 应用名：智能客服 agent（多轮对话）。
      */
-    public static final String APP_USER_PROFILE = "user-profile";
+    public static final String APP_CUSTOMER_SERVICE = "customer-service";
 
     private final DifyProperties properties;
     private final RestTemplate restTemplate;
