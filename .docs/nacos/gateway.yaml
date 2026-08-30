@@ -14,6 +14,9 @@ auth:
 spring:
   cloud:
     gateway:
+      httpclient:
+        # SSE 流式响应（客服对话）需较长读超时；默认 60s 会提前断开长回复
+        response-timeout: 180s
       routes:
         - id: user-service
           uri: lb://user-service
