@@ -31,4 +31,9 @@ public class RedisConstants {
     // AI 分析报告结果缓存（+taskId，一次性查看、TTL 过期自动清理）
     public static final String AI_REPORT_KEY = "ai:report:";
     public static final Long AI_REPORT_TTL = 3600L;
+    // AI 客服会话（+userId）：conv 存 Dify conversation_id，history 存消息列表
+    public static final String AI_CHAT_CONV_KEY = "ai:chat:conv:";
+    public static final Long AI_CHAT_CONV_TTL = 1800L;    // 30min 滑动过期
+    public static final String AI_CHAT_HISTORY_KEY = "ai:chat:history:";
+    public static final Long AI_CHAT_HISTORY_TTL = 86400L; // 24h
 }
