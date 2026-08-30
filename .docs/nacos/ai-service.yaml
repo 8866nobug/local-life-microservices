@@ -1,7 +1,0 @@
-# ai-service 配置：Dify 编排引擎地址与凭证。
-# 自托管 Dify 默认 API 端口 5001；使用 Dify Cloud 时改为 https://api.dify.ai。
-dify:
-  base-url: http://localhost:5001
-  api-key: app-REPLACE_ME
-  # workflow 阻塞调用的读超时（秒）
-  timeout-seconds: 60

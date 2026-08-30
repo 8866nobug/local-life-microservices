@@ -40,7 +40,8 @@ public class AiReportAsyncExecutor {
     public void generateAsync(Long taskId, Long shopId) {
         String key = RedisConstants.AI_REPORT_KEY + taskId;
         try {
-            Map<String, Object> outputs = difyClient.runWorkflow(Map.of("shopId", String.valueOf(shopId)));
+            Map<String, Object> outputs = difyClient.runWorkflow(
+                    DifyClient.APP_SHOP_ANALYSIS, Map.of("shopId", String.valueOf(shopId)));
             String report = outputs == null ? null : (String) outputs.get("report");
             if (report == null || report.isBlank()) {
                 throw new DifyException("workflow 未返回 report 字段");

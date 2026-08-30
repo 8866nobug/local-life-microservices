@@ -26,6 +26,16 @@ import java.util.Map;
 @Component
 public class DifyClient {
 
+    /**
+     * Dify 应用名：店铺数据分析报告（店铺 + 关联优惠券）。
+     */
+    public static final String APP_SHOP_ANALYSIS = "shop-analysis";
+
+    /**
+     * Dify 应用名：根据用户 blog 生成用户画像。
+     */
+    public static final String APP_USER_PROFILE = "user-profile";
+
     private final DifyProperties properties;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -41,10 +51,21 @@ public class DifyClient {
     /**
      * 阻塞执行 workflow，返回结束节点的 outputs（Map 形式）。
      *
+     * @param app    应用名（见 {@link #APP_SHOP_ANALYSIS} 等常量），决定使用哪个 api-key / base-url
      * @param inputs workflow 输入变量
      */
-    public Map<String, Object> runWorkflow(Map<String, Object> inputs) {
-        String url = properties.getBaseUrl() + "/v1/workflows/run";
+    public Map<String, Object> runWorkflow(String app, Map<String, Object> inputs) {
+        DifyProperties.App cfg = properties.getApps().get(app);
+        if (cfg == null) {
+            throw new DifyException("未配置 Dify 应用: " + app);
+        }
+        String apiKey = cfg.getApiKey();
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new DifyException("Dify 应用 " + app + " 未配置 api-key");
+        }
+        String baseUrl = cfg.getBaseUrl() != null && !cfg.getBaseUrl().isBlank()
+                ? cfg.getBaseUrl() : properties.getBaseUrl();
+        String url = baseUrl + "/v1/workflows/run";
 
         Map<String, Object> body = new HashMap<>();
         body.put("inputs", inputs);
@@ -53,7 +74,7 @@ public class DifyClient {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(properties.getApiKey());
+        headers.setBearerAuth(apiKey);
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
 
